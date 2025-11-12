@@ -1,0 +1,123 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mise-en-gitlab"
+dynamic = ["version"]
+description = ''
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+keywords = []
+authors = [
+  { name = "William Born", email = "william.born.git@gmail.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "click",
+  "pyyaml",
+  "rich",
+  "rich-click"
+]
+
+[project.optional-dependencies]
+dev = ["mypy", "types-PyYAML", "pytest", "pylint", "pydoclint", "lizard"]
+watch = [
+  "watchdog>=2.0.0",
+]
+
+[project.urls]
+Documentation = "https://github.com/williamkborn/mise-en-gitlab#readme"
+Issues = "https://github.com/williamkborn/mise-en-gitlab/issues"
+Source = "https://github.com/williamkborn/mise-en-gitlab"
+
+[project.scripts]
+mise-en-gitlab = "mise_en_gitlab.cli:mise_en_gitlab"
+
+[tool.hatch.version]
+path = "src/mise_en_gitlab/__about__.py"
+[tool.hatch.envs.default]
+dependencies = [
+  "mise-en-gitlab[dev]"
+]
+[tool.hatch.envs.default.scripts]
+typecheck = "mypy src/"
+test = "pytest"
+pylint = "python3 -m pylint ."
+pydoclint = "python3 -m pydoclint.main ."
+lizard = "python3 -m lizard -C 6 -x './tests/*' ."
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/mise-en-gitlab tests}"
+
+[tool.coverage.run]
+source_pkgs = ["mise-en-gitlab", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/mise-en-gitlab/__about__.py",
+]
+
+[tool.coverage.paths]
+mise-en-gitlab = ["src/mise-en-gitlab", "*/mise-en-gitlab/src/mise-en-gitlab"]
+tests = ["tests", "*/mise-en-gitlab/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+[tool.pylint.main]
+max-line-length = 120
+
+[tool.pytest.ini_options]
+addopts = "-v --maxfail=1 --disable-warnings"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = ["src"]
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+strict_optional = true
+no_implicit_optional = true
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 95
+
+[tool.ruff.lint]
+ignore = ["SLF001"]
+
+[tool.pydoclint]
+style = "google"
+
+[tool.hatch.envs.docs]
+dependencies = [
+  "mdbook>=0.4.0",
+]
+[tool.hatch.envs.docs.scripts]
+build = "mdbook build {args:docs}"
+serve = "mdbook serve {args:docs}"

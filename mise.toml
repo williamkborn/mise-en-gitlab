@@ -1,0 +1,45 @@
+# mise configuration for mise-en-gitlab development
+# https://mise.jdx.dev/
+
+[tools]
+# Python version for development
+python = "3.12"
+
+# Python project management
+hatch = "latest"
+
+[settings]
+# Enable experimental features if needed
+# experimental = true
+
+[env]
+# Set PYTHONPATH to include src directory for development
+PYTHONPATH = "{{ config_root }}/src"
+
+# Development environment variables
+MISE_EN_GITLAB_DEV = "true"
+
+# Logging configuration for development
+MISE_EN_GITLAB_LOG_LEVEL = "INFO"
+
+[tasks.clean]
+description = "Delete files that match .gitignore patterns"
+run = "git clean -fdX"
+
+[tasks.precommit]
+description = "Run formatting, typecheck, and tests before commit"
+run = [
+  "hatch fmt",
+  "hatch run lizard",
+  "hatch run pydoclint",
+  "hatch run pylint",
+  "hatch run typecheck",
+  "hatch run test"
+]
+
+[tasks.setup-dev]
+description = "Set up local development environment and precommit hook"
+run = [
+  "mise install",
+  "mise generate git-pre-commit --write --task=precommit"
+]
