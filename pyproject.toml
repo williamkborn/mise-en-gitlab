@@ -56,7 +56,7 @@ typecheck = "mypy src/"
 test = "pytest"
 pylint = "python3 -m pylint ."
 pydoclint = "python3 -m pydoclint.main ."
-lizard = "python3 -m lizard -C 6 -x './tests/*' ."
+lizard = "python3 -m lizard -C 6 -x './tests/*' -x './.venv/*' ."
 
 [tool.hatch.envs.types]
 extra-dependencies = [

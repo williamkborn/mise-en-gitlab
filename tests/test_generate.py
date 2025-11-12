@@ -5,13 +5,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from textwrap import dedent
+from typing import TYPE_CHECKING
 
 import yaml
 from click.testing import CliRunner
 
 from mise_en_gitlab.cli import mise_en_gitlab
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write(tmp_path: Path, name: str, content: str) -> Path:
@@ -62,7 +65,9 @@ def test_generate_success(tmp_path: Path) -> None:
     data = yaml.safe_load(output.read_text(encoding="utf-8"))
     assert data["stages"] == ["build", "test", "deploy"]
 
-    assert "build" in data and "test" in data and "deploy" in data
+    assert "build" in data
+    assert "test" in data
+    assert "deploy" in data
 
     assert data["build"]["stage"] == "build"
     assert data["build"]["image"] == "node:20"

@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: MIT
 """mise-en-gitlab CLI"""
 
+from pathlib import Path
+
 import click
 
 from mise_en_gitlab.__about__ import __version__
@@ -38,11 +40,9 @@ def mise_en_gitlab() -> None:
     help="Path to write generated GitLab CI YAML",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging")
-def generate(in_path: str, out_path: str, verbose: bool) -> None:
+def generate(in_path: str, out_path: str, *, verbose: bool) -> None:
     """Generate GitLab CI YAML from mise.toml."""
     init_cli_logging(verbose=verbose)
-
-    from pathlib import Path
 
     input_file = Path(in_path)
     output_file = Path(out_path)
@@ -53,12 +53,12 @@ def generate(in_path: str, out_path: str, verbose: bool) -> None:
 
     exit_code = generate_ci_yaml(input_file, output_file)
     if exit_code == ExitCode.SUCCESS:
-        click.secho(
-            f"Generated GitLab CI YAML → {output_file}", fg="green", err=False
-        )
+        click.secho(f"Generated GitLab CI YAML → {output_file}", fg="green", err=False)
     elif exit_code == ExitCode.INVALID_OR_MISSING_CI_TASKS:
         click.secho(
-            "No CI-annotated tasks found. Add [tasks.<name>.ci] sections.", fg="yellow", err=True
+            "No CI-annotated tasks found. Add [tasks.<name>.ci] sections.",
+            fg="yellow",
+            err=True,
         )
     elif exit_code == ExitCode.MALFORMED_TOML_OR_SCHEMA:
         click.secho("Malformed TOML or schema error.", fg="red", err=True)

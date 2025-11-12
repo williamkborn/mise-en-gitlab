@@ -88,7 +88,7 @@ def init_cli_logging(*, verbose: bool = False) -> logging.Logger:
         logging.Logger: Configured logger
     """
     # Check environment variable first, then verbose flag
-    env_level = os.getenv("mise_en_gitlab_LOG_LEVEL", "").upper()
+    env_level = os.getenv("MISE_EN_GITLAB_LOG_LEVEL", "").upper()
     if env_level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
         level = env_level
     else:
