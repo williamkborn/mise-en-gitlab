@@ -140,6 +140,18 @@ def _normalize_script(run_value: Any) -> list[str]:
     raise SchemaError(msg)
 
 
+def _build_script(task_body: Mapping[str, Any]) -> list[str]:
+    """Build the script array, honoring optional 'dir' on the task."""
+    script = _normalize_script(task_body.get("run"))
+    dir_value = task_body.get("dir")
+    if dir_value is None:
+        return script
+    if not isinstance(dir_value, str) or not dir_value.strip():
+        msg = "'dir' must be a non-empty string"
+        raise SchemaError(msg)
+    return [f"cd {dir_value}", *script]
+
+
 if TYPE_CHECKING:
     # Imported for type checking only; annotations are postponed
     from pathlib import Path
@@ -159,7 +171,7 @@ def _build_job_base(
     image = ci.get("image", default_image)
     if image is not None:
         job["image"] = image
-    job["script"] = _normalize_script(task_body.get("run"))
+    job["script"] = _build_script(task_body)
     return job
 
 

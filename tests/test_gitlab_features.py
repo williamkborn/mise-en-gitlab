@@ -180,6 +180,24 @@ def test_job_name_rename(tmp_path: Path) -> None:
     assert data["test"]["script"] == ["echo test"]
 
 
+def test_task_dir_prepends_cd(tmp_path: Path) -> None:
+    """Task 'dir' prepends a 'cd <dir>' as first script line."""
+    exit_code, out = _run_generate(
+        tmp_path,
+        """
+        [tasks.build]
+        dir = "a_dir"
+        run = "make build"
+        [gitlab-ci.jobs.build]
+        stage = "build"
+        """,
+    )
+    assert exit_code == 0
+    data = yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert data["stages"] == ["build"]
+    assert data["build"]["script"] == ["cd a_dir", "make build"]
+
+
 def test_non_ci_tasks_ignored_and_stage_dedup(tmp_path: Path) -> None:
     """Non-CI tasks are ignored; duplicate stages deduped in order."""
     exit_code, out = _run_generate(
