@@ -42,7 +42,7 @@ def test_job_pass_through_common_fields(tmp_path: Path) -> None:
         [tasks.build]
         run = ["echo a", "echo b"]
 
-        [tasks.build.ci]
+        [gitlab-ci.jobs.build]
         stage = "build"
         before_script = ["echo before"]
         after_script = ["echo after"]
@@ -55,26 +55,26 @@ def test_job_pass_through_common_fields(tmp_path: Path) -> None:
         resource_group = "rg-1"
         parallel = 2
         services = ["postgres:15"]
-        [tasks.build.ci.variables]
+        [gitlab-ci.jobs.build.variables]
         TZ = "UTC"
 
-        [tasks.build.ci.artifacts]
+        [gitlab-ci.jobs.build.artifacts]
         paths = ["dist/"]
         when = "always"
         expire_in = "1 week"
-        [tasks.build.ci.artifacts.reports]
+        [gitlab-ci.jobs.build.artifacts.reports]
         dotenv = ".env"
 
         [tasks.test]
         run = "pytest -q"
-        [tasks.test.ci]
+        [gitlab-ci.jobs.test]
         stage = "test"
         needs = ["build"]
         image = "python:3.12"
 
         [tasks.deploy]
         run = "./deploy.sh"
-        [tasks.deploy.ci]
+        [gitlab-ci.jobs.deploy]
         stage = "deploy"
         rules = [
           { if = "'$CI_COMMIT_TAG'" },
@@ -125,19 +125,19 @@ def test_rules_string_and_artifacts_list_normalization(tmp_path: Path) -> None:
     exit_code, out = _run_generate(
         tmp_path,
         """
-        [ci.defaults]
+        [gitlab-ci.defaults]
         image = "alpine:3"
 
         [tasks.a]
         run = "echo 1"
-        [tasks.a.ci]
+        [gitlab-ci.jobs.a]
         stage = "build"
         rules = ["if: '$CI_PIPELINE_SOURCE' == 'push'"]
         artifacts = ["out/"]
 
         [tasks.b]
         run = "echo 2"
-        [tasks.b.ci]
+        [gitlab-ci.jobs.b]
         stage = "build"
         """,
     )
@@ -154,6 +154,32 @@ def test_rules_string_and_artifacts_list_normalization(tmp_path: Path) -> None:
     assert data["b"]["image"] == "alpine:3"
 
 
+def test_job_name_rename(tmp_path: Path) -> None:
+    """jobs.<task>.name renames the final GitLab job key."""
+    exit_code, out = _run_generate(
+        tmp_path,
+        """
+        [tasks.build]
+        run = "echo build"
+        [gitlab-ci.jobs.build]
+        stage = "build"
+        name = "build-js"
+
+        [tasks.test]
+        run = "echo test"
+        [gitlab-ci.jobs.test]
+        stage = "test"
+        """,
+    )
+    assert exit_code == 0
+    data = yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert data["stages"] == ["build", "test"]
+    assert "build-js" in data
+    assert "build" not in data  # renamed job key
+    assert data["build-js"]["script"] == ["echo build"]
+    assert data["test"]["script"] == ["echo test"]
+
+
 def test_non_ci_tasks_ignored_and_stage_dedup(tmp_path: Path) -> None:
     """Non-CI tasks are ignored; duplicate stages deduped in order."""
     exit_code, out = _run_generate(
@@ -161,12 +187,12 @@ def test_non_ci_tasks_ignored_and_stage_dedup(tmp_path: Path) -> None:
         """
         [tasks.one]
         run = "echo one"
-        [tasks.one.ci]
+        [gitlab-ci.jobs.one]
         stage = "build"
 
         [tasks.two]
         run = "echo two"
-        [tasks.two.ci]
+        [gitlab-ci.jobs.two]
         stage = "build"
 
         [tasks.three]
@@ -186,17 +212,17 @@ def test_defaults_image_applied_and_overridden(tmp_path: Path) -> None:
     exit_code, out = _run_generate(
         tmp_path,
         """
-        [ci.defaults]
+        [gitlab-ci.defaults]
         image = "alpine:3.19"
 
         [tasks.build]
         run = "echo build"
-        [tasks.build.ci]
+        [gitlab-ci.jobs.build]
         stage = "build"
 
         [tasks.test]
         run = "pytest"
-        [tasks.test.ci]
+        [gitlab-ci.jobs.test]
         stage = "test"
         image = "python:3.12"
         """,
@@ -215,7 +241,7 @@ def test_invalid_needs_type_exit_2(tmp_path: Path) -> None:
         """
         [tasks.x]
         run = "echo hi"
-        [tasks.x.ci]
+        [gitlab-ci.jobs.x]
         stage = "build"
         needs = "build"
         """,
@@ -231,7 +257,7 @@ def test_missing_run_in_ci_exit_2(tmp_path: Path) -> None:
         tmp_path,
         """
         [tasks.x]
-        [tasks.x.ci]
+        [gitlab-ci.jobs.x]
         stage = "build"
         """,
         out_name="ci.yml",
@@ -247,7 +273,7 @@ def test_rules_invalid_item_exit_2(tmp_path: Path) -> None:
         """
         [tasks.x]
         run = "echo hi"
-        [tasks.x.ci]
+        [gitlab-ci.jobs.x]
         stage = "build"
         rules = [1, "if: '$CI_COMMIT_BRANCH' == 'main'"]
         """,

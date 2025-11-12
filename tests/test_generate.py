@@ -32,7 +32,7 @@ def test_generate_success(tmp_path: Path) -> None:
         [tasks.build]
         run = "pnpm build"
 
-        [tasks.build.ci]
+        [gitlab-ci.jobs.build]
         stage = "build"
         image = "node:20"
         rules = ["if: '$CI_COMMIT_BRANCH' == 'main'"]
@@ -41,14 +41,14 @@ def test_generate_success(tmp_path: Path) -> None:
         [tasks.test]
         run = "pytest"
 
-        [tasks.test.ci]
+        [gitlab-ci.jobs.test]
         stage = "test"
         image = "python:3.12"
 
         [tasks.deploy]
         run = "./scripts/deploy.sh"
 
-        [tasks.deploy.ci]
+        [gitlab-ci.jobs.deploy]
         stage = "deploy"
         rules = ["if: '$CI_COMMIT_TAG'"]
         needs = ["build", "test"]
@@ -122,14 +122,14 @@ def test_generate_malformed_toml_exit_2(tmp_path: Path) -> None:
 
 
 def test_missing_stage_in_ci_exit_2(tmp_path: Path) -> None:
-    """Require 'stage' in [tasks.*.ci]."""
+    """Require 'stage' in [gitlab-ci.jobs.*]."""
     mise = _write(
         tmp_path,
         "mise.toml",
         """
         [tasks.build]
         run = "echo hi"
-        [tasks.build.ci]
+        [gitlab-ci.jobs.build]
         image = "alpine:3"
         """,
     )

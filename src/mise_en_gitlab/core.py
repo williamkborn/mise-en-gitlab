@@ -79,8 +79,8 @@ def _parse_rules(rules_value: Any) -> list[dict[str, Any]]:
 
 
 def _read_default_image(data: Mapping[str, Any]) -> str | None:
-    """Read [ci.defaults].image if present."""
-    ci_top = data.get("ci")
+    """Read [gitlab-ci.defaults].image if present."""
+    ci_top = data.get("gitlab-ci")
     if isinstance(ci_top, Mapping):
         defaults = ci_top.get("defaults")
         if isinstance(defaults, Mapping):
@@ -108,7 +108,7 @@ def _collect_stages(ci_tasks: Iterable[tuple[str, Mapping[str, Any]]]) -> list[s
     for _, ci in ci_tasks:
         stage = ci.get("stage")
         if not isinstance(stage, str) or not stage:
-            msg = "each [tasks.<name>.ci] must include non-empty 'stage'"
+            msg = "each [gitlab-ci.jobs.<name>] must include non-empty 'stage'"
             raise SchemaError(msg)
         if stage not in seen:
             seen.add(stage)
@@ -146,7 +146,7 @@ if TYPE_CHECKING:
 
 
 def _collect_passthrough(ci: Mapping[str, Any]) -> dict[str, Any]:
-    excluded = {"stage", "image", "rules", "artifacts", "needs"}
+    excluded = {"stage", "image", "rules", "artifacts", "needs", "name"}
     return {k: v for k, v in ci.items() if k not in excluded}
 
 
@@ -209,34 +209,72 @@ def parse_mise_toml(path: Path) -> Mapping[str, Any]:
     return data
 
 
+def _iter_ci_jobs(data: Mapping[str, Any]) -> Iterable[tuple[str, Mapping[str, Any]]]:
+    """Iterate jobs defined under [gitlab-ci.jobs]."""
+    ci_root = data.get("gitlab-ci")
+    if not isinstance(ci_root, Mapping):
+        return
+    jobs = ci_root.get("jobs")
+    if not isinstance(jobs, Mapping):
+        return
+    for job_task_key, job_body in jobs.items():
+        if isinstance(job_body, Mapping) and job_body:
+            yield job_task_key, job_body
+
+
+def _get_tasks_table(data: Mapping[str, Any]) -> Mapping[str, Any]:
+    tasks = data.get("tasks")
+    if not isinstance(tasks, Mapping):
+        msg = "No tasks found"
+        raise NoCITasksError(msg)
+    return tasks
+
+
+def _get_ci_jobs_or_error(data: Mapping[str, Any]) -> list[tuple[str, Mapping[str, Any]]]:
+    jobs = list(_iter_ci_jobs(data))
+    if not jobs:
+        msg = "No CI jobs found (missing [gitlab-ci.jobs.*] sections)"
+        raise NoCITasksError(msg)
+    return jobs
+
+
+def _final_job_key(task_key: str, job_cfg: Mapping[str, Any]) -> str:
+    rename = job_cfg.get("name")
+    if isinstance(rename, str) and rename.strip():
+        return rename.strip()
+    return task_key
+
+
 def build_gitlab_ci_structure(data: Mapping[str, Any]) -> GenerationResult:
     """Build the GitLab CI structure from parsed mise data."""
     # Global defaults: [ci.defaults]
     default_image = _read_default_image(data)
 
-    tasks = data.get("tasks")
-    if not isinstance(tasks, Mapping) or not tasks:
-        msg = "No tasks found"
-        raise NoCITasksError(msg)
+    tasks = _get_tasks_table(data)  # for retrieving 'run'
+    ci_jobs = _get_ci_jobs_or_error(data)  # preserves TOML order
 
-    ci_tasks = list(_iter_ci_tasks(tasks))  # preserves TOML order
-    if not ci_tasks:
-        msg = "No CI-annotated tasks found (no [tasks.<name>.ci] sections)"
-        raise NoCITasksError(msg)
-
-    stages = _collect_stages(ci_tasks)
+    # Validate stages and collect stage order
+    stages = _collect_stages((name, ci) for name, ci in ci_jobs)
 
     top: MutableMapping[str, Any] = {}
     top["stages"] = stages
 
     job_names: list[str] = []
 
-    for task_name, ci in ci_tasks:
-        task_body = tasks[task_name]
-        job = _build_job(task_body, ci, default_image=default_image)
+    for task_key, job_cfg in ci_jobs:
+        # Determine script from corresponding task
+        task_body = tasks.get(task_key)
+        if not isinstance(task_body, Mapping):
+            msg = f"Task '{task_key}' not found for gitlab-ci job"
+            raise SchemaError(msg)
 
-        top[task_name] = job
-        job_names.append(task_name)
+        job = _build_job(task_body, job_cfg, default_image=default_image)
+
+        # Optional rename of the final GitLab job key
+        yaml_job_key = _final_job_key(task_key, job_cfg)
+
+        top[yaml_job_key] = job
+        job_names.append(yaml_job_key)
 
     yaml_text = yaml.safe_dump(top, sort_keys=False)
     return GenerationResult(yaml_text=yaml_text, stages=stages, jobs=job_names)
