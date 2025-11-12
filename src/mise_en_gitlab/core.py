@@ -78,6 +78,18 @@ def _parse_rules(rules_value: Any) -> list[dict[str, Any]]:
     raise SchemaError(msg)
 
 
+def _read_default_image(data: Mapping[str, Any]) -> str | None:
+    """Read [ci.defaults].image if present."""
+    ci_top = data.get("ci")
+    if isinstance(ci_top, Mapping):
+        defaults = ci_top.get("defaults")
+        if isinstance(defaults, Mapping):
+            img = defaults.get("image")
+            if isinstance(img, str) and img:
+                return img
+    return None
+
+
 def _parse_artifacts(artifacts_value: Any) -> dict[str, Any]:
     """Normalize artifacts into a dict as GitLab expects."""
     if artifacts_value is None:
@@ -139,12 +151,12 @@ def _collect_passthrough(ci: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _build_job_base(
-    task_body: Mapping[str, Any], ci: Mapping[str, Any]
+    task_body: Mapping[str, Any], ci: Mapping[str, Any], *, default_image: str | None
 ) -> MutableMapping[str, Any]:
     """Build base job fields (stage, image, script)."""
     job: MutableMapping[str, Any] = {}
     job["stage"] = ci.get("stage")
-    image = ci.get("image")
+    image = ci.get("image", default_image)
     if image is not None:
         job["image"] = image
     job["script"] = _normalize_script(task_body.get("run"))
@@ -175,10 +187,10 @@ def _apply_optional_fields(job: MutableMapping[str, Any], ci: Mapping[str, Any])
 
 
 def _build_job(
-    task_body: Mapping[str, Any], ci: Mapping[str, Any]
+    task_body: Mapping[str, Any], ci: Mapping[str, Any], *, default_image: str | None
 ) -> MutableMapping[str, Any]:
     """Build a single GitLab job structure from task and its ci table."""
-    job = _build_job_base(task_body, ci)
+    job = _build_job_base(task_body, ci, default_image=default_image)
     _apply_optional_fields(job, ci)
     return job
 
@@ -199,6 +211,9 @@ def parse_mise_toml(path: Path) -> Mapping[str, Any]:
 
 def build_gitlab_ci_structure(data: Mapping[str, Any]) -> GenerationResult:
     """Build the GitLab CI structure from parsed mise data."""
+    # Global defaults: [ci.defaults]
+    default_image = _read_default_image(data)
+
     tasks = data.get("tasks")
     if not isinstance(tasks, Mapping) or not tasks:
         msg = "No tasks found"
@@ -218,7 +233,7 @@ def build_gitlab_ci_structure(data: Mapping[str, Any]) -> GenerationResult:
 
     for task_name, ci in ci_tasks:
         task_body = tasks[task_name]
-        job = _build_job(task_body, ci)
+        job = _build_job(task_body, ci, default_image=default_image)
 
         top[task_name] = job
         job_names.append(task_name)
