@@ -1,0 +1,11 @@
+repos:
+  - repo: local
+    hooks:
+      - id: mise-precommit
+        name: mise precommit
+        entry: mise precommit
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
