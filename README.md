@@ -16,10 +16,12 @@ Define build/test/deploy tasks once in Mise and generate a valid `.gitlab-ci.yml
 - Make pipelines self-describing and reproducible across environments.
 
 ### What gets generated
-- `stages` list derived from each `[tasks.<name>.ci.stage]`
-- One GitLab job per `[tasks.<name>.ci]` block
+- `stages` list derived from each `[gitlab-ci.jobs.<name>.stage]`
+- One GitLab job per `[gitlab-ci.jobs.<name>]` block
 - Preserves ordering and relationships (`needs`, `rules`, `artifacts`, and other common keys)
-- Optional global defaults via `[ci.defaults]` (e.g., default image)
+- Optional global defaults via `[gitlab-ci.defaults]` (e.g., default image)
+- Job key renaming via `name` under `[gitlab-ci.jobs.<name>]`
+- Automatic `cd` prefix in job scripts when a task defines `dir`
 
 ---
 
@@ -54,7 +56,8 @@ Exit codes:
 
 ## Input: Mise tasks annotated for CI
 
-Any task under `[tasks.<name>]` becomes a GitLab job when it includes a `[tasks.<name>.ci]` table.
+Any task under `[tasks.<name>]` becomes a GitLab job when a corresponding `[gitlab-ci.jobs.<name>]` table is present.  
+Job `script` is taken from `tasks.<name>.run`. If `tasks.<name>.dir` is set, the first script line becomes `cd <dir>`.
 
 Minimal example:
 
@@ -62,7 +65,7 @@ Minimal example:
 [tasks.build]
 run = "pnpm build"
 
-[tasks.build.ci]
+[gitlab-ci.jobs.build]
 stage = "build"
 image = "node:20"
 rules = ["if: '$CI_COMMIT_BRANCH' == 'main'"]
@@ -71,14 +74,14 @@ artifacts = ["dist/"]
 [tasks.test]
 run = "pytest"
 
-[tasks.test.ci]
+[gitlab-ci.jobs.test]
 stage = "test"
 image = "python:3.12"
 
 [tasks.deploy]
 run = "./scripts/deploy.sh"
 
-[tasks.deploy.ci]
+[gitlab-ci.jobs.deploy]
 stage = "deploy"
 rules = ["if: '$CI_COMMIT_TAG'"]
 needs = ["build", "test"]
@@ -89,8 +92,44 @@ needs = ["build", "test"]
 You can set a default image for all jobs (unless overridden by a job) using:
 
 ```toml
-[ci.defaults]
+[gitlab-ci.defaults]
 image = "alpine:3.19"
+```
+
+### Rename the final GitLab job key
+
+You can rename the emitted GitLab job key using `name` under the job block:
+
+```toml
+[tasks.build]
+run = "pnpm build"
+
+[gitlab-ci.jobs.build]
+stage = "build"
+name = "build-js"  # the YAML job key becomes 'build-js'
+```
+
+### Execute a task in a specific directory
+
+If your task has a working directory, set `dir` on the task; the generated script will begin with `cd <dir>`:
+
+```toml
+[tasks.build]
+dir = "frontend"
+run = ["pnpm install", "pnpm build"]
+
+[gitlab-ci.jobs.build]
+stage = "build"
+image = "node:20"
+```
+
+The resulting script will be:
+
+```yaml
+script:
+  - cd frontend
+  - pnpm install
+  - pnpm build
 ```
 
 ---
@@ -136,8 +175,8 @@ deploy:
 Notes on normalization:
 - `rules` accepts a list of strings (e.g., `"if: <expr>"`) or dicts (`{ if = "...", when = "..." }`); both are normalized to GitLab's object form.
 - `artifacts` can be a list (treated as `paths`) or a table (`paths`, `when`, `expire_in`, `reports`, etc.).
-- `run` can be a string or a string list; it maps to `script`.
-- Unrecognized keys under `[tasks.<name>.ci]` are passed through as-is (common keys like `before_script`, `after_script`, `tags`, `timeout`, `retry`, `interruptible`, `allow_failure`, `when`, `resource_group`, `parallel`, `services`, `variables` are supported by pass-through).
+- `run` can be a string or a string list; it maps to `script` (optionally prefixed by `cd <dir>` when `tasks.<name>.dir` is set).
+- Unrecognized keys under `[gitlab-ci.jobs.<name>]` are passed through as-is (common keys like `before_script`, `after_script`, `tags`, `timeout`, `retry`, `interruptible`, `allow_failure`, `when`, `resource_group`, `parallel`, `services`, `variables` are supported by pass-through).
 
 ---
 
